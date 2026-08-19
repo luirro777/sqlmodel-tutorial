@@ -1,11 +1,16 @@
 from sqlmodel import Field, SQLModel, create_engine, Session, select, col, or_
 
-class Hero(SQLModel, table=True):
+class Team(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    name: str
-    #name: str = Field(index=True)
+    name: str = Field(index=True)
+    headquarters: str
+
+class Hero(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)    
+    name: str = Field(index=True)
     secret_name: str
     age: int | None = None
+    team_id: int | None = Field(default=None, foreign_key="team.id")
 
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
@@ -26,49 +31,80 @@ CRUD:
 '''
 
 def create_heroes():
-    hero_1 = Hero(name="Deadpond", secret_name="Dive Wilson")
-    hero_2 = Hero(name="Spider-Boy", secret_name="Pedro Parqueador")
-    hero_3 = Hero(name="Rusty-Man", secret_name="Tommy Sharp", age=48)
-    hero_4 = Hero(name="Tarantula", secret_name="Natalia Roman-on", age=32)
-    hero_5 = Hero(name="Black Lion", secret_name="Trevor Challa", age=35)
-    hero_6 = Hero(name="Dr. Weird", secret_name="Steve Weird", age=36)
-    hero_7 = Hero(name="Captain North America", secret_name="Esteban Rogelios", age=93)
-    '''
-    #Podriamos hacerlo asi:
-
-    session = Session(engine)
-
-    session.add(hero_1)
-    session.add(hero_2)
-    session.add(hero_3)
-    session.add(hero_4)
-    session.add(hero_5)
-    session.add(hero_6)
-    session.add(hero_7)
-
-    session.commit()
-
-    session.close()
-
-    #Pero es mucho más práctico y recomendable hacerlo de esta manera:
-    '''
-    with Session(engine) as session:
-        session.add(hero_1)
-        session.add(hero_2)
-        session.add(hero_3)
-        session.add(hero_4)
-        session.add(hero_5)
-        session.add(hero_6)
-        session.add(hero_7)
+    
         
+    with Session(engine) as session:
+
+        # Creamos teams
+        team_preventers = Team(name="Preventers", headquarters="Sharp Tower")
+        team_z_force = Team(name="Z-Force", headquarters="Sister Margaret's Bar")
+
+        # Escribimos los teams en la BD
+        session.add(team_preventers)
+        session.add(team_z_force)
         session.commit()
+    
+        # Creamos heroes
+        hero_deadpond = Hero(
+                name="Deadpond", 
+                secret_name="Dive Wilson", 
+                team_id=team_z_force.id
+        )
+        hero_rusty_man = Hero(
+                name="Rusty-Man",
+                secret_name="Tommy Sharp",
+                age=48,
+                team_id=team_preventers.id,
+        )
+        hero_spider_boy = Hero(
+                name="Spider-Boy", 
+                secret_name="Pedro Parqueador"
+        )
+    
+        # .. y tambien los escribimos
+        session.add(hero_deadpond)
+        session.add(hero_rusty_man)
+        session.add(hero_spider_boy)     
+        session.commit()
+
+        # ... e imprimimos por pantalla
+        session.refresh(hero_deadpond)
+        session.refresh(hero_rusty_man)
+        session.refresh(hero_spider_boy)
+
+        print("Created hero:", hero_deadpond)
+        print("Created hero:", hero_rusty_man)
+        print("Created hero:", hero_spider_boy)
 
 def select_heroes():
     with Session(engine) as session:
-        '''
-            SELECT id, name, secret_name, age
-            FROM hero
-        '''
+
+        # JOIN (con where)
+        #statement = select(Hero, Team).where(Hero.team_id == Team.id)
+        #results = session.exec(statement)
+        #for hero, team in results:
+        #    print("Hero:", hero, "Team:", team)
+
+        # JOIN con Join
+        #statement = select(Hero, Team).join(Team)
+        #results = session.exec(statement)
+        #for hero, team in results:
+        #    print("Hero:", hero, "Team:", team)
+
+        # left outer join
+        #statement = select(Hero, Team).join(Team, isouter=True)
+        #results = session.exec(statement)
+        #for hero, team in results:
+        #    print("Hero:", hero, "Team:", team)
+
+        # Y si solo metemos info de Hero? (podemos incluso usar un where despues ;) )
+        statement = select(Hero).join(Team).where(Team.name == "Preventers")
+        results = session.exec(statement)
+        for hero in results:
+            print("Preventer Hero:", hero)
+
+
+        
         #statement = select(Hero)
         #results = session.exec(statement)
         #primer manera:
@@ -128,15 +164,35 @@ def update_heroes():
         hero = results.one()
         print("Hero:", hero)
 
+        team_statement = select(Team).where(Team.name == "Preventers")
+        team = session.exec(team_statement).one()
+
         hero.age = 16
+        hero.team_id = team.id
+
         session.add(hero)
         session.commit()
         session.refresh(hero)
         print("Updated hero:", hero)
 
+def break_connection():
+    with Session(engine) as session:
+        statement = select(Hero).where(Hero.name == "Spider-Boy")
+        results = session.exec(statement)
+        hero = results.one()
+        print("Hero:", hero)
+
+        hero.team_id = None
+
+        session.add(hero)
+        session.commit()
+        session.refresh(hero)
+        print("No es mas preventer:", hero)
+    
+
 def delete_heroes():
     with Session(engine) as session:
-        statement = select(Hero).where(Hero.name == "Spider-Youngster")
+        statement = select(Hero).where(Hero.name == "Spider-Boy")
         results = session.exec(statement)
         hero = results.one()
         print("Hero: ", hero)
@@ -146,19 +202,20 @@ def delete_heroes():
 
         print("Deleted hero:", hero)
 
-        statement = select(Hero).where(Hero.name == "Spider-Youngster")
+        statement = select(Hero).where(Hero.name == "Spider-Boy")
         results = session.exec(statement)
         hero = results.first()
 
         if hero is None:
-            print("There's no hero named Spider-Youngster")
+            print("There's no hero named Spider-Boy")
 
 def main():
     create_db_and_tables()
     create_heroes()
     select_heroes()
     update_heroes()
-    delete_heroes()
+    break_connection()
+    #delete_heroes()
 
 
 
