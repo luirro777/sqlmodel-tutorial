@@ -12,6 +12,13 @@ class Hero(SQLModel, table=True):
     age: int | None = None
     team_id: int | None = Field(default=None, foreign_key="team.id")
 
+class Gadget(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key= True)
+    name: str = Field(index=True)
+    hero_id : int | None = Field(default=None, foreign_key = "hero.id")
+
+
+
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
@@ -29,6 +36,8 @@ CRUD:
 - D -> DELETE -> delete_heroes()
 
 '''
+
+
 
 def create_heroes():
     
@@ -75,6 +84,62 @@ def create_heroes():
         print("Created hero:", hero_deadpond)
         print("Created hero:", hero_rusty_man)
         print("Created hero:", hero_spider_boy)
+
+def create_gadgets():
+    with Session(engine) as session:
+        rusty = session.exec(select(Hero).where(Hero.name == "Rusty-Man")).one()
+        spider = session.exec(select(Hero).where(Hero.name == "Spider-Boy")).one()
+
+        g1 = Gadget(name="Escudo de Vibranium", hero_id=rusty.id)
+        g2 = Gadget(name="Lanza-telarañas", hero_id=spider.id)
+
+        session.add(g1)
+        session.add(g2)
+        session.commit()
+        session.refresh(g1)
+        session.refresh(g2)
+        print("Gadget 1:", g1)
+        print("Gadget 2:", g2)
+        
+def find_specific_heroes():
+    with Session(engine) as session:
+        statement = select(Hero).where(
+            or_(
+                Hero.age > 40,
+                col(Hero.name).in_(["Spider-Boy", "Deadpond"])
+            )
+        )
+        heroes = session.exec(statement).all()
+        for hero in heroes:
+            print("Heroe encontrado: ", hero)
+
+def get_heroes_and_headquarters():
+    with Session(engine) as session:
+        statement = select(Hero, Team).join(Team)
+        results = session.exec(statement)
+        for hero, team in results:
+            print(f"El héroe {hero.name} opera desde el cuartel {team.headquarters}")
+
+def paginate_heroes(page: int, page_size: int = 2):
+    offset_value = (page - 1) * page_size
+    with Session(engine) as session:
+        statement = select(Hero).offset(offset_value).limit(page_size)
+        heroes = session.exec(statement).all()
+        print(f"--- Pagina {page} ----")
+        for hero in heroes:
+            print(hero)
+
+def transfer_or_reassign_hero():
+    with Session(engine) as session:
+        hero = session.exec(select(Hero).where(Hero.name == "Deadpond")).one()
+        preventers = session.exec(select(Team).where(Team.name == "Preventers")).one()
+
+        hero.team_id = preventers.id
+        session.add(hero)
+        session.commit()
+        session.refresh(hero)
+
+        print(f"{hero.name} ahora pertenece a {hero.team_id}")
 
 def select_heroes():
     with Session(engine) as session:
@@ -212,9 +277,14 @@ def delete_heroes():
 def main():
     create_db_and_tables()
     create_heroes()
-    select_heroes()
-    update_heroes()
-    break_connection()
+    create_gadgets()
+    find_specific_heroes()
+    get_heroes_and_headquarters()
+    paginate_heroes(2)
+    transfer_or_reassign_hero()
+    #select_heroes()
+    #update_heroes()
+    #break_connection()
     #delete_heroes()
 
 
