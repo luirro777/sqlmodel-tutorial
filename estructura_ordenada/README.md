@@ -46,7 +46,7 @@ project/
 Ejecutar:
 
 ```bash
-uv run python -m project.app
+python -m project.app
 ```
 
 ## Notas clave
