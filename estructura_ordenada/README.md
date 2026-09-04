@@ -21,7 +21,7 @@ project/
 Ejecutar:
 
 ```bash
-uv run python -m project.app
+python -m project.app
 ```
 
 ## 2. `separate_files_project/` — Opción avanzada
